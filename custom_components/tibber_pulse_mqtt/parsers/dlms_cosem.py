@@ -41,7 +41,7 @@ _DLMS_UNITS: Dict[int, str] = {
 
 # ---------------------------------------------------------------------------
 # Positional (list-id) DLMS lists — meters that send a flat STRUCTURE of bare
-# values WITHOUT embedded OBIS codes or scaler/unit (e.g. Norwegian Kamstrup).
+# values WITHOUT embedded OBIS codes or scaler/unit (e.g. Norwegian Kaifa).
 #
 # Registry format:
 #   { list_id_prefix: { member_count: [ (index, obis_or_"skip", kind, scale?), ... ] } }
@@ -53,12 +53,24 @@ _DLMS_UNITS: Dict[int, str] = {
 #
 # Add new meters by extending this registry; no parser changes required.
 # ---------------------------------------------------------------------------
-KAMSTRUP_LISTS: Dict[str, Dict[int, list]] = {
-    # Kamstrup (Norwegian HAN, list id "KFM_001")
+POSITIONAL_LISTS: Dict[str, Dict[int, list]] = {
+    # Kaifa (Norwegian HAN, list id "KFM_001")
     "KFM": {
         # Short list: active power only
         1: [
             (0, "1-0:1.7.0", "W", 1.0),
+        ],
+        # Single-phase list 2 (e.g. Kaifa MA105H2E)
+        9: [
+            (0, None, "skip"),
+            (1, "0-0:96.1.0", "str"),
+            (2, "0-0:96.1.7", "str"),
+            (3, "1-0:1.7.0", "W", 1.0),
+            (4, "1-0:2.7.0", "W", 1.0),
+            (5, "1-0:3.7.0", "VAr", 1.0),
+            (6, "1-0:4.7.0", "VAr", 1.0),
+            (7, "1-0:31.7.0", "A", 0.001),
+            (8, "1-0:32.7.0", "V", 0.1),
         ],
         # Full list (13 members)
         13: [
@@ -75,6 +87,23 @@ KAMSTRUP_LISTS: Dict[str, Dict[int, list]] = {
             (10, "1-0:32.7.0", "V", 0.1),      # voltage L1
             (11, "1-0:52.7.0", "V", 0.1),      # voltage L2
             (12, "1-0:72.7.0", "V", 0.1),      # voltage L3
+        ],
+        # Single-phase list 3: list 2 plus clock and cumulative energy.
+        14: [
+            (0, None, "skip"),
+            (1, "0-0:96.1.0", "str"),
+            (2, "0-0:96.1.7", "str"),
+            (3, "1-0:1.7.0", "W", 1.0),
+            (4, "1-0:2.7.0", "W", 1.0),
+            (5, "1-0:3.7.0", "VAr", 1.0),
+            (6, "1-0:4.7.0", "VAr", 1.0),
+            (7, "1-0:31.7.0", "A", 0.001),
+            (8, "1-0:32.7.0", "V", 0.1),
+            (9, None, "skip"),
+            (10, "1-0:1.8.0", "Wh", 1.0),
+            (11, "1-0:2.8.0", "Wh", 1.0),
+            (12, "1-0:3.8.0", "VArh", 1.0),
+            (13, "1-0:4.8.0", "VArh", 1.0),
         ],
     },
 }
@@ -160,7 +189,7 @@ def _dlms_app_start(blob: bytes) -> Optional[int]:
     """
     Validate HDLC + LLC and return the position of the first byte AFTER the
     invoke-id-and-priority and optional datetime, i.e. the container tag.
-    Shared by the Aidon (ARRAY) and Kamstrup (STRUCTURE) decoders.
+    Shared by the Aidon (ARRAY) and positional STRUCTURE decoders.
     """
     if not blob or blob[0] != _HDLC_FLAG:
         return None
@@ -194,11 +223,11 @@ def _dlms_app_start(blob: bytes) -> Optional[int]:
     return pos
 
 
-def parse_dlms_kamstrup(blob: bytes) -> Optional[Dict[str, Any]]:
+def parse_dlms_positional(blob: bytes) -> Optional[Dict[str, Any]]:
     """
     Parse a flat positional DLMS list (no embedded OBIS codes / scaler-unit),
-    such as the Norwegian Kamstrup HAN list. Mapping is resolved from
-    KAMSTRUP_LISTS using the leading list-id octet-string and member count.
+    such as the Norwegian Kaifa HAN list. Mapping is resolved from
+    POSITIONAL_LISTS using the leading list-id octet-string and member count.
 
     Returns {obis_code: value, "_units": {obis_code: unit_str}} or None.
     """
@@ -206,7 +235,7 @@ def parse_dlms_kamstrup(blob: bytes) -> Optional[Dict[str, Any]]:
     if pos is None:
         return None
 
-    # Kamstrup uses a top-level STRUCTURE (not ARRAY)
+    # Kaifa uses a top-level STRUCTURE (not ARRAY)
     if blob[pos] != _TAG_STRUCTURE:
         return None
     pos += 1
@@ -216,7 +245,7 @@ def parse_dlms_kamstrup(blob: bytes) -> Optional[Dict[str, Any]]:
     pos += 1
 
     # The first member is the list-id octet-string only on the long lists.
-    # Short lists (e.g. Kamstrup count=1) carry no list-id, so we cannot key
+    # Short lists (e.g. Kaifa count=1) carry no list-id, so we cannot key
     # off it — resolve those purely by member count instead.
     first = _read_octet_string(blob, pos)
     list_id = None
@@ -229,14 +258,14 @@ def parse_dlms_kamstrup(blob: bytes) -> Optional[Dict[str, Any]]:
     # Resolve mapping by list-id prefix + member count.
     mapping = None
     if list_id is not None:
-        for prefix, by_count in KAMSTRUP_LISTS.items():
+        for prefix, by_count in POSITIONAL_LISTS.items():
             if list_id.startswith(prefix):
                 mapping = by_count.get(count)
                 break
     else:
         # No list-id present: only accept an unambiguous count whose mapping
         # contains no octet-string ("str"/"skip") members.
-        for by_count in KAMSTRUP_LISTS.values():
+        for by_count in POSITIONAL_LISTS.values():
             candidate = by_count.get(count)
             if candidate and all(e[2] not in ("str", "skip") for e in candidate):
                 mapping = candidate
@@ -301,12 +330,12 @@ def parse_dlms_kamstrup(blob: bytes) -> Optional[Dict[str, Any]]:
 def parse_dlms(blob: bytes) -> Optional[Dict[str, Any]]:
     """
     Top-level DLMS dispatcher. Tries the Aidon-style embedded-OBIS ARRAY format
-    first, then the positional (Kamstrup) STRUCTURE format.
+    first, then the positional STRUCTURE format.
     """
     obis = parse_dlms_cosem(blob)
     if obis:
         return obis
-    return parse_dlms_kamstrup(blob)
+    return parse_dlms_positional(blob)
 
 
 def parse_dlms_cosem(blob: bytes) -> Optional[Dict[str, Any]]:
@@ -451,3 +480,19 @@ def find_dlms_frame_in_blob(blob: bytes) -> Optional[bytes]:
         if field_bytes and field_bytes[0] == _HDLC_FLAG:
             return field_bytes
     return None
+
+
+def parse_dlms_frames_from_envelope(payload: bytes) -> list[Dict[str, Any]]:
+    """Parse every DLMS frame in repeated top-level protobuf byte fields."""
+    decoded: list[Dict[str, Any]] = []
+    for *_, outer_blob in iter_len_delimited(payload, 0, 0):
+        frame = find_dlms_frame_in_blob(outer_blob)
+        if not frame:
+            continue
+        try:
+            obis = parse_dlms(frame)
+        except Exception:
+            continue
+        if obis:
+            decoded.append(obis)
+    return decoded
