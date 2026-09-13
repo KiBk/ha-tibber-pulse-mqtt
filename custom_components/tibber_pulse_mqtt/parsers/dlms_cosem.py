@@ -4,6 +4,7 @@ import struct
 from typing import Dict, Any, Optional
 
 from .pulse_envelope import iter_len_delimited
+from .dlms_datetime import parse_frame_datetime
 
 _HDLC_FLAG = 0x7E
 _LLC_HEADER = b'\xe6\xe7\x00'
@@ -332,10 +333,12 @@ def parse_dlms(blob: bytes) -> Optional[Dict[str, Any]]:
     Top-level DLMS dispatcher. Tries the Aidon-style embedded-OBIS ARRAY format
     first, then the positional STRUCTURE format.
     """
-    obis = parse_dlms_cosem(blob)
+    obis = parse_dlms_cosem(blob) or parse_dlms_positional(blob)
     if obis:
-        return obis
-    return parse_dlms_positional(blob)
+        timestamp = parse_frame_datetime(blob)
+        if timestamp:
+            obis["_measurement_time"] = timestamp
+    return obis
 
 
 def parse_dlms_cosem(blob: bytes) -> Optional[Dict[str, Any]]:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import asyncio
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from homeassistant.core import HomeAssistant, callback
@@ -26,6 +27,7 @@ from .parsers.dlms_cosem import (
     find_dlms_frame_in_blob,
     parse_dlms_frames_from_envelope,
 )
+from .parsers.dlms_datetime import resolve_frame_datetime
 
 from .obis.streaming import ObisStreamManager
 from .util.diagnostics import DiagnosticsRegistry
@@ -397,8 +399,12 @@ class TibberDispatcher:
         if not self._sensor_manager_ready():
             return
 
+        measurement_time = resolve_frame_datetime(
+            obis.get("_measurement_time"), self.hass.config.time_zone,
+            datetime.now(timezone.utc),
+        )
         for code, value in obis.items():
-            if code == "_units":
+            if code.startswith("_"):
                 continue
             if sm and hasattr(sm, "add_or_update"):
-                call_sm_on_loop(self.hass, sm.add_or_update, pulse_id, code, value, status)
+                call_sm_on_loop(self.hass, sm.add_or_update, pulse_id, code, value, status, measurement_time)

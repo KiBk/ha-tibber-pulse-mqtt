@@ -19,7 +19,13 @@ def load_parser_modules():
     )
     for name in package_names:
         module = sys.modules.setdefault(name, types.ModuleType(name))
-        module.__path__ = []
+        module.__path__ = [str(ROOT.joinpath(*name.split('.')))]
+
+    time_name = "custom_components.tibber_pulse_mqtt.parsers.dlms_datetime"
+    time_spec = importlib.util.spec_from_file_location(time_name, PARSERS / "dlms_datetime.py")
+    time_module = importlib.util.module_from_spec(time_spec)
+    sys.modules[time_name] = time_module
+    time_spec.loader.exec_module(time_module)
 
     envelope_name = "custom_components.tibber_pulse_mqtt.parsers.pulse_envelope"
     envelope_spec = importlib.util.spec_from_file_location(
