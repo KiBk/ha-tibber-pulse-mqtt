@@ -13,3 +13,13 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m unittest discover -s tests -v
+
+  homeassistant-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install 'homeassistant==2026.6.4' 'paho-mqtt>=1.6.1' 'protobuf>=4.25.0'
+      - run: python -m unittest discover -s tests -v

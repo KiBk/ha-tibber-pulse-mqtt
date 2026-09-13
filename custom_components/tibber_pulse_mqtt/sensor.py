@@ -93,7 +93,8 @@ class SensorManager:
         dev_id: str,           # pulse_id
         obis_code: str,
         value: Any,
-        status: Dict[str, Any] | None
+        status: Dict[str, Any] | None,
+        measurement_time: Dict[str, str] | None = None,
     ):
         """
         Add or update one OBIS sensor bound to a canonical device (pulse_id).
@@ -148,7 +149,7 @@ class SensorManager:
                         meta=meta,
                         status=status or {}
                     )
-                    ent._state = scaled_value
+                    ent.set_state(scaled_value, measurement_time)
 
                     self._entities[unique_id] = ent
 
@@ -169,8 +170,9 @@ class SensorManager:
                 # After creation, fall through and update its state below
 
         # Update entity
-        ent.set_status(status or {})
-        ent.set_state(scaled_value)
+        # Publish value, timestamp and status atomically. A metadata write must
+        # never pair the previous value with the next measurement's timestamp.
+        ent.set_state(scaled_value, measurement_time, status=status or {})
 
     def update_status_for_device(self, dev_id: str, status: Dict[str, Any]):
         """Propagate status attributes to all entities of the device (dev_id = pulse_id)."""
@@ -210,6 +212,7 @@ class TibberSensor(SensorEntity):
         self.meta = meta or {}
 
         self._state = None
+        self._measurement_time = None
         self._meter_id = None
         self._added_to_hass = False
 
@@ -257,14 +260,15 @@ class TibberSensor(SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        """Only expose a constrained set of status fields as entity attributes."""
-        if not self._status:
-            return None
+        """Expose device status and the original instantaneous measurement time."""
         allowed = [
             "hwmodel", "rssi", "ssid", "Build", "Hw", "ID", "IP", "Uptime",
             "baud", "ntc", "dsmr", "heap"
         ]
-        return {k: v for k, v in self._status.items() if k in allowed}
+        attrs = {k: v for k, v in self._status.items() if k in allowed}
+        if self._measurement_time:
+            attrs.update(self._measurement_time)
+        return attrs or None
 
     def _schedule_state_write(self):
         """Schedule async_write_ha_state on the HA event loop thread-safely."""
@@ -289,9 +293,17 @@ class TibberSensor(SensorEntity):
                     # As a last resort, ignore; HA will refresh soon anyway
                     pass
 
-    def set_state(self, value: Any):
+    def set_state(self, value: Any, measurement_time: Dict[str, str] | None = None,
+                  *, status: Dict[str, Any] | None = None):
         """Set internal state; write only after entity is added to HA, on the HA loop."""
         self._state = value
+        # Cumulative energy registers may refer to an earlier hourly boundary,
+        # so a telegram timestamp only labels instantaneous measurements.
+        self._measurement_time = (
+            dict(measurement_time) if measurement_time and self.meta.get("state_class") == "measurement" else None
+        )
+        if status is not None:
+            self._status = status
         if getattr(self, "_added_to_hass", False):
             self._schedule_state_write()
 

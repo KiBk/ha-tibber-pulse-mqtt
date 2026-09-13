@@ -8,6 +8,7 @@ Support development at
 For Tibber pulse IR devices, have a look at [marq24/ha-tibber-pulse-local](https://github.com/marq24/ha-tibber-pulse-local)
 
 ## Features
+- Preserves valid DLMS measurement timestamps for instantaneous sensors, including batched HAN readings. See [measurement timestamps and NILM](docs/measurement-timestamps.md) for timezone handling and history export.
 - Works with Home Assistant MQTT (built-in) or **external broker**
 - External broker supports:
   - no auth
