@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Decode every HAN/DLMS frame in protobuf messages containing repeated field-2
+  blobs instead of retaining only the final blob.
+- Support Kaifa KFM_001 single-phase list 2 (9 members) and list 3 (14
+  members), including MA105H2E power, current, voltage, and cumulative energy.
+- Add regression tests for existing Aidon and three-phase KFM parsing alongside
+  the new single-phase and repeated-envelope paths.
 
 ## [0.4.1]
 ### Fixed

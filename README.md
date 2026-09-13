@@ -8,6 +8,7 @@ Support development at
 For Tibber pulse IR devices, have a look at [marq24/ha-tibber-pulse-local](https://github.com/marq24/ha-tibber-pulse-local)
 
 ## Features
+- Preserves valid DLMS measurement timestamps for instantaneous sensors, including batched HAN readings. See [measurement timestamps and NILM](docs/measurement-timestamps.md) for timezone handling and history export.
 - Works with Home Assistant MQTT (built-in) or **external broker**
 - External broker supports:
   - no auth
@@ -19,6 +20,7 @@ For Tibber pulse IR devices, have a look at [marq24/ha-tibber-pulse-local](https
 - Robust binary parsers:
   - Protobuf + zlib (P1 / DSMR)
   - DLMS/COSEM DataNotification (HAN meters)
+  - Repeated-frame protobuf envelopes and Kaifa KFM_001 single-/three-phase lists
 
 ## HACS Installation
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mrhedstrom&repository=ha-tibber-pulse-mqtt)
